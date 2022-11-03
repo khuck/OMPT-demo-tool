@@ -1,4 +1,6 @@
-#define _GNU_SOURCE
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -8,8 +10,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <execinfo.h>
-
-char **backtrace_symbols(void *const *buffer, int size);
 
 #if defined(__GNUC__)
 #define __THIS_FUNCTION__ __PRETTY_FUNCTION__
@@ -206,12 +206,14 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
     rcexit;
 }
 
+#ifndef __NVCOMPILER // nvc++ doesn't like this function
 static void on_ompt_callback_control_tool(uint64_t command, uint64_t modifier,
     void *arg, const void *codeptr_ra) {
     rcenter;
     get_name(codeptr_ra);
     rcexit;
 }
+#endif
 
 static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t endpoint,
     ompt_data_t *parallel_data, ompt_data_t *task_data, uint64_t count,
@@ -680,7 +682,9 @@ int ompt_initialize(
     register_ompt_callback(ompt_callback_target); // = 8,
     register_ompt_callback(ompt_callback_target_data_op); // = 9,
     register_ompt_callback(ompt_callback_target_submit); // = 10,
-    //register_ompt_callback(ompt_callback_control_tool); // = 11,
+#ifndef __NVCOMPILER // nvc++ doesn't like this function.
+    register_ompt_callback(ompt_callback_control_tool); // = 11,
+#endif
     register_ompt_callback(ompt_callback_device_initialize);
     register_ompt_callback(ompt_callback_device_finalize);
     register_ompt_callback(ompt_callback_device_load);
@@ -757,6 +761,8 @@ int preload_main(int argc, char** argv, char** envp) {
     printf("In main wrapper!\n");
     int ret = main_real(argc, argv, envp);
     printf("Exiting main wrapper!\n");
+    flush_trace();
+    stop_trace();
     ompt_finalize_tool();
     rcexit;
     return ret;
@@ -788,7 +794,8 @@ __libc_start_main(int (*_main)(int, char**, char**), int _argc, char** _argv,
     preload_libc_start_main user_main = (preload_libc_start_main)dlsym(RTLD_NEXT, "__libc_start_main");
 
     int rc;
-    if(user_main && user_main != _this_func) {
+    if((user_main != nullptr) &&
+       ((void*)user_main != _this_func)) {
         rc = user_main(preload_main, _argc, _argv, _init, _fini, _rtld_fini, _stack_end);
     } else {
         fputs("Error! preload could not find __libc_start_main!", stderr);
