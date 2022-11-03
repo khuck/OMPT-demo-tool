@@ -206,14 +206,13 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
     rcexit;
 }
 
-#ifndef __NVCOMPILER // nvc++ doesn't like this function
-static void on_ompt_callback_control_tool(uint64_t command, uint64_t modifier,
+static int on_ompt_callback_control_tool(uint64_t command, uint64_t modifier,
     void *arg, const void *codeptr_ra) {
     rcenter;
     get_name(codeptr_ra);
     rcexit;
+    return 0;
 }
-#endif
 
 static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t endpoint,
     ompt_data_t *parallel_data, ompt_data_t *task_data, uint64_t count,
@@ -682,9 +681,7 @@ int ompt_initialize(
     register_ompt_callback(ompt_callback_target); // = 8,
     register_ompt_callback(ompt_callback_target_data_op); // = 9,
     register_ompt_callback(ompt_callback_target_submit); // = 10,
-#ifndef __NVCOMPILER // nvc++ doesn't like this function.
     register_ompt_callback(ompt_callback_control_tool); // = 11,
-#endif
     register_ompt_callback(ompt_callback_device_initialize);
     register_ompt_callback(ompt_callback_device_finalize);
     register_ompt_callback(ompt_callback_device_load);
