@@ -10,3 +10,4 @@ cmake ..
 make
 ./simple
 ```
+At the UO, we can use gilgamesh for NVIDIA and CUDA, or jupiter for Intel, or Omnia for all three.
