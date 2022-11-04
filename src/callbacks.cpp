@@ -52,7 +52,8 @@ static ompt_stop_trace_t ompt_stop_trace = NULL;
 static ompt_get_record_ompt_t ompt_get_record_ompt = NULL;
 static ompt_advance_buffer_cursor_t ompt_advance_buffer_cursor = NULL;
 
-#define EP(x) [x] = #x  /* ENUM PRINT */
+// #define EP(x) [x] = #x  /* ENUM PRINT */
+#define EP(x) #x  /* ENUM PRINT */
 
 typedef enum stack_type_t {
     thread_stack = 0,
@@ -84,7 +85,7 @@ class timer_stack {
     public:
         timer_stack(stack_type_t stype) : _stype(stype) {
             //std::cout << "New stack! '" << stack_type_strings[stype] << "'" << std::endl;
-            };
+        };
         ~timer_stack() {
             std::stringstream ss;
             ss << "Mismatched events in " << stack_type_strings[_stype] << " stack: [";
@@ -161,10 +162,10 @@ const char* ompt_work_strings[] = {
     EP(ompt_work_distribute),
     EP(ompt_work_taskloop),
     EP(ompt_work_scope)
-    //EP(ompt_work_loop_static),
-    //EP(ompt_work_loop_dynamic),
-    //EP(ompt_work_loop_guided),
-    //EP(ompt_work_loop_other)
+        //EP(ompt_work_loop_static),
+        //EP(ompt_work_loop_dynamic),
+        //EP(ompt_work_loop_guided),
+        //EP(ompt_work_loop_other)
 };
 
 const char* ompt_scope_endpoint_strings[] = {
@@ -212,10 +213,12 @@ const char* ompt_severity_strings[] = {
             case ompt_set_impossible: \
             case ompt_set_sometimes: \
             case ompt_set_sometimes_paired: \
-                printf("Could not register callback '" #name "' - %s\n", ompt_set_result_strings[rc]); \
+                printf("Could not register callback '" #name "' - %s\n", \
+                ompt_set_result_strings[rc]); \
                 break; \
             default: \
-                printf("Registered callback '" #name "' - %s\n", ompt_set_result_strings[rc]); \
+                printf("Registered callback '" #name "' - %s\n", \
+                ompt_set_result_strings[rc]); \
         } \
     } while (0)
 
@@ -263,7 +266,7 @@ void get_flags(int flags) {
 /* CPU side events */
 
 static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
-    ompt_data_t *thread_data) {
+        ompt_data_t *thread_data) {
     cbenter;
     if (thread_data->value == 0) thread_data->value = ompt_get_unique_id();
     getStack(thread_stack)->push(thread_data->value);
@@ -275,8 +278,8 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
 }
 
 static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
-    const ompt_frame_t *parent_task_frame, ompt_data_t* parallel_data,
-    uint32_t requested_team_size, int flags, const void *codeptr_ra) {
+        const ompt_frame_t *parent_task_frame, ompt_data_t* parallel_data,
+        uint32_t requested_team_size, int flags, const void *codeptr_ra) {
     cbenter;
     printf("Team size: %u, flags: %x\n", requested_team_size, flags);
     get_name(codeptr_ra);
@@ -285,32 +288,32 @@ static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
 }
 
 static void on_ompt_callback_parallel_end( ompt_data_t *parallel_data,
-    ompt_data_t *parent_task_data, int flags, const void *codeptr_ra) {
+        ompt_data_t *parent_task_data, int flags, const void *codeptr_ra) {
     cbenter;
     getStack(parallel_stack)->pop(parallel_data->value);
 }
 
 static void on_ompt_callback_task_create(ompt_data_t *encountering_task_data,
-    const ompt_frame_t *encountering_task_frame, ompt_data_t *new_task_data,
-    int flags, int has_dependences, const void *codeptr_ra) {
+        const ompt_frame_t *encountering_task_frame, ompt_data_t *new_task_data,
+        int flags, int has_dependences, const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
 }
 
 static void on_ompt_callback_dependences(ompt_data_t *src_task_data,
-    const ompt_dependence_t *deps, int ndeps) {
+        const ompt_dependence_t *deps, int ndeps) {
     cbenter;
     printf("Source: %lu, ndeps: %d\n", src_task_data->value, ndeps);
 }
 
 static void on_ompt_callback_task_dependence(ompt_data_t *src_task_data,
-    ompt_data_t *sink_task_data) {
+        ompt_data_t *sink_task_data) {
     cbenter;
     printf("Source: %lu, sink: %lu\n", src_task_data->value, sink_task_data->value);
 }
 
 static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data, ompt_task_status_t prior_task_status,
-    ompt_data_t *next_task_data) {
+        ompt_data_t *next_task_data) {
     cbenter;
 }
 
@@ -324,8 +327,8 @@ void stackEndpoint(stack_type_t stype, uint64_t& id, ompt_scope_endpoint_t endpo
 }
 
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
-    ompt_data_t *parallel_data, ompt_data_t *task_data,
-    unsigned int actual_parallelism, unsigned int index, int flags) {
+        ompt_data_t *parallel_data, ompt_data_t *task_data,
+        unsigned int actual_parallelism, unsigned int index, int flags) {
     cbenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_flags(flags);
@@ -333,15 +336,15 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
 }
 
 static int on_ompt_callback_control_tool(uint64_t command, uint64_t modifier,
-    void *arg, const void *codeptr_ra) {
+        void *arg, const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
     return 0;
 }
 
 static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t endpoint,
-    ompt_data_t *parallel_data, ompt_data_t *task_data, uint64_t count,
-    const void *codeptr_ra) {
+        ompt_data_t *parallel_data, ompt_data_t *task_data, uint64_t count,
+        const void *codeptr_ra) {
     cbenter;
     printf("\tWork type: %s\n", ompt_work_strings[work_type]);
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
@@ -351,7 +354,7 @@ static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t e
 }
 
 static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
-    ompt_data_t *parallel_data, ompt_data_t *task_data, const void *codeptr_ra) {
+        ompt_data_t *parallel_data, ompt_data_t *task_data, const void *codeptr_ra) {
     cbenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
@@ -359,17 +362,17 @@ static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
 }
 
 static void on_ompt_callback_target_map(ompt_id_t target_id,
-    unsigned int nitems, void **host_addr, void **device_addr,
-    size_t *bytes, unsigned int *mapping_flags, const void *codeptr_ra) {
+        unsigned int nitems, void **host_addr, void **device_addr,
+        size_t *bytes, unsigned int *mapping_flags, const void *codeptr_ra) {
     cbenter;
     printf("\tTarget: %lu, nitems: %u, host_addr: %p, device_addr: %p, bytes: %lu, flags: %u",
-        target_id, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
+            target_id, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
     get_name(codeptr_ra);
 }
 
 static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
-    ompt_scope_endpoint_t endpoint, ompt_data_t *parallel_data,
-    ompt_data_t *task_data, const void *codeptr_ra) {
+        ompt_scope_endpoint_t endpoint, ompt_data_t *parallel_data,
+        ompt_data_t *task_data, const void *codeptr_ra) {
     cbenter;
     printf("\tKind: %s\n", ompt_sync_region_strings[kind]);
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
@@ -378,8 +381,8 @@ static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
 }
 
 static void on_ompt_callback_mutex_acquire(ompt_mutex_t kind,
-    unsigned int hint, unsigned int impl, ompt_wait_id_t wait_id,
-    const void *codeptr_ra) {
+        unsigned int hint, unsigned int impl, ompt_wait_id_t wait_id,
+        const void *codeptr_ra) {
     cbenter;
     printf("\tKind: %s\n", ompt_mutex_strings[kind]);
     printf("\thint: %u, impl: %u, wait_id: %lu\n", hint, impl, wait_id);
@@ -387,12 +390,12 @@ static void on_ompt_callback_mutex_acquire(ompt_mutex_t kind,
 }
 
 static void on_ompt_callback_dispatch(ompt_data_t *parallel_data,
-    ompt_data_t *task_data, ompt_dispatch_t kind, ompt_data_t instance) {
+        ompt_data_t *task_data, ompt_dispatch_t kind, ompt_data_t instance) {
     cbenter;
 }
 
 static void on_ompt_callback_nest_lock(ompt_scope_endpoint_t endpoint,
-    ompt_wait_id_t wait_id, const void *codeptr_ra) {
+        ompt_wait_id_t wait_id, const void *codeptr_ra) {
     cbenter;
     printf("\tWait_id: %lu\n", wait_id);
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
@@ -401,21 +404,32 @@ static void on_ompt_callback_nest_lock(ompt_scope_endpoint_t endpoint,
 }
 
 static void on_ompt_callback_flush(ompt_data_t *thread_data,
-    const void *codeptr_ra) {
+        const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
 }
 
 static void on_ompt_callback_cancel(ompt_data_t *task_data, int flags,
-    const void *codeptr_ra) {
+        const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
 }
 
+static void on_ompt_callback_reduction(ompt_sync_region_t kind,
+        ompt_scope_endpoint_t endpoint, ompt_data_t *parallel_data,
+        ompt_data_t *task_data, const void *codeptr_ra) {
+    cbenter;
+    printf("\tKind: %s\n", ompt_sync_region_strings[kind]);
+    printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
+    get_name(codeptr_ra);
+    stackEndpoint(sync_stack, task_data->value, endpoint);
+}
+#define ompt_callback_reduction_t ompt_callback_sync_region_t
+
 static void on_ompt_callback_target_emi(ompt_target_t kind,
-    ompt_scope_endpoint_t endpoint, int device_num,
-    ompt_data_t *task_data, ompt_data_t *target_task_data,
-    ompt_data_t *target_data, const void *codeptr_ra) {
+        ompt_scope_endpoint_t endpoint, int device_num,
+        ompt_data_t *task_data, ompt_data_t *target_task_data,
+        ompt_data_t *target_data, const void *codeptr_ra) {
     cbenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
@@ -423,10 +437,10 @@ static void on_ompt_callback_target_emi(ompt_target_t kind,
 }
 
 static void on_ompt_callback_target_data_op_emi (ompt_scope_endpoint_t endpoint,
-    ompt_data_t *target_task_data, ompt_data_t *target_data,
-    ompt_id_t *host_op_id, ompt_target_data_op_t optype,
-    void *src_addr, int src_device_num, void *dest_addr, int dest_device_num,
-    size_t bytes, const void *codeptr_ra) {
+        ompt_data_t *target_task_data, ompt_data_t *target_data,
+        ompt_id_t *host_op_id, ompt_target_data_op_t optype,
+        void *src_addr, int src_device_num, void *dest_addr, int dest_device_num,
+        size_t bytes, const void *codeptr_ra) {
     cbenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
@@ -434,29 +448,65 @@ static void on_ompt_callback_target_data_op_emi (ompt_scope_endpoint_t endpoint,
 }
 
 static void on_ompt_callback_target_submit_emi (ompt_scope_endpoint_t endpoint,
-    ompt_data_t *target_data, ompt_id_t *host_op_id,
-    unsigned int requested_num_teams) {
+        ompt_data_t *target_data, ompt_id_t *host_op_id,
+        unsigned int requested_num_teams) {
     cbenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     stackEndpoint(target_submit_emi_stack, target_data->value, endpoint);
 }
 
 static void on_ompt_callback_target_map_emi (ompt_data_t *target_data,
-    unsigned int nitems, void **host_addr, void **device_addr,
-    size_t *bytes, unsigned int *mapping_flags, const void *codeptr_ra) {
+        unsigned int nitems, void **host_addr, void **device_addr,
+        size_t *bytes, unsigned int *mapping_flags, const void *codeptr_ra) {
     cbenter;
     printf("\tTarget: %lu, nitems: %u, host_addr: %p, device_addr: %p, bytes: %lu, flags: %u",
-        target_data->value, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
+            target_data->value, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
     get_name(codeptr_ra);
 }
 
 static void on_ompt_callback_error(ompt_severity_t severity,
-    const char *message, size_t length, const void *codeptr_ra) {
+        const char *message, size_t length, const void *codeptr_ra) {
     cbenter;
     printf("\tSeverity: %s, message: '%s', length: %lu\n",
-        ompt_severity_strings[severity], message, length);
+            ompt_severity_strings[severity], message, length);
     get_name(codeptr_ra);
 }
+
+static void on_ompt_callback_sync_region_wait(ompt_sync_region_t kind,
+        ompt_scope_endpoint_t endpoint, ompt_data_t *parallel_data,
+        ompt_data_t *task_data, const void *codeptr_ra) {
+    cbenter;
+    printf("\tKind: %s\n", ompt_sync_region_strings[kind]);
+    printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
+    get_name(codeptr_ra);
+    stackEndpoint(sync_stack, task_data->value, endpoint);
+}
+#define ompt_callback_sync_region_wait_t ompt_callback_sync_region_t
+
+static void on_ompt_callback_mutex(ompt_mutex_t kind, ompt_wait_id_t wait_id,
+    const void *codeptr_ra) {
+    cbenter;
+    printf("\tKind: %s\n", ompt_mutex_strings[kind]);
+    printf("\tWait_id: %lu\n", wait_id);
+    get_name(codeptr_ra);
+}
+#define on_ompt_callback_mutex_released on_ompt_callback_mutex
+#define ompt_callback_mutex_released_t ompt_callback_mutex_t
+#define on_ompt_callback_lock_destroy on_ompt_callback_mutex
+#define ompt_callback_lock_destroy_t ompt_callback_mutex_t
+#define on_ompt_callback_mutex_acquired on_ompt_callback_mutex
+#define ompt_callback_mutex_acquired_t ompt_callback_mutex_t
+
+static void on_ompt_callback_lock_init(ompt_mutex_t kind,
+        unsigned int hint, unsigned int impl, ompt_wait_id_t wait_id,
+        const void *codeptr_ra) {
+    cbenter;
+    printf("\tKind: %s\n", ompt_mutex_strings[kind]);
+    printf("\thint: %u, impl: %u, wait_id: %lu\n", hint, impl, wait_id);
+    get_name(codeptr_ra);
+}
+
+#define ompt_callback_lock_init_t ompt_callback_mutex_acquire_t
 
 // Utilities
 
@@ -607,14 +657,9 @@ static int stop_trace() {
 // Synchronous callbacks
 // The device init callback must obtain the handles to the tracing
 // entry points, if required.
-static void on_ompt_callback_device_initialize
-(
- int device_num,
- const char *type,
- ompt_device_t *device,
- ompt_function_lookup_t lookup,
- const char *documentation
- ) {
+static void on_ompt_callback_device_initialize ( int device_num,
+        const char *type, ompt_device_t *device, ompt_function_lookup_t lookup,
+        const char *documentation) {
     cbenter;
     printf("Init: device_num=%d type=%s device=%p lookup=%p doc=%p\n",
             device_num, type, device, lookup, documentation);
@@ -642,53 +687,30 @@ static void on_ompt_callback_device_initialize
 }
 
 // Called at device finalize
-static void on_ompt_callback_device_finalize
-(
- int device_num
- ) {
+static void on_ompt_callback_device_finalize ( int device_num) {
     cbenter;
     printf("Callback Fini: device_num=%d\n", device_num);
 }
 
 // Called at device load time
-static void on_ompt_callback_device_load
-(
- int device_num,
- const char *filename,
- int64_t offset_in_file,
- void *vma_in_file,
- size_t bytes,
- void *host_addr,
- void *device_addr,
- uint64_t module_id
- ) {
+static void on_ompt_callback_device_load ( int device_num, const char *filename,
+        int64_t offset_in_file, void *vma_in_file, size_t bytes, void *host_addr,
+        void *device_addr, uint64_t module_id) {
     cbenter;
     printf("Load: device_num:%d filename:%s host_adddr:%p device_addr:%p bytes:%lu\n",
             device_num, filename, host_addr, device_addr, bytes);
 }
 
-static void on_ompt_callback_device_unload
-(
- int device_num,
- uint64_t module_id
- ) {
+static void on_ompt_callback_device_unload ( int device_num, uint64_t module_id) {
     cbenter;
     printf("Unload: device_num:%d\n", device_num);
 }
 
 // Data transfer
-static void on_ompt_callback_target_data_op
-(
- ompt_id_t target_id,
- ompt_id_t host_op_id,
- ompt_target_data_op_t optype,
- void *src_addr,
- int src_device_num,
- void *dest_addr,
- int dest_device_num,
- size_t bytes,
- const void *codeptr_ra
- ) {
+static void on_ompt_callback_target_data_op ( ompt_id_t target_id,
+        ompt_id_t host_op_id, ompt_target_data_op_t optype, void *src_addr,
+        int src_device_num, void *dest_addr, int dest_device_num, size_t bytes,
+        const void *codeptr_ra) {
     cbenter;
     assert(codeptr_ra != 0);
     // Both src and dest must not be null
@@ -700,15 +722,9 @@ static void on_ompt_callback_target_data_op
 }
 
 // Target region
-static void on_ompt_callback_target
-(
- ompt_target_t kind,
- ompt_scope_endpoint_t endpoint,
- int device_num,
- ompt_data_t *task_data,
- ompt_id_t target_id,
- const void *codeptr_ra
- ) {
+static void on_ompt_callback_target ( ompt_target_t kind,
+        ompt_scope_endpoint_t endpoint, int device_num, ompt_data_t *task_data,
+        ompt_id_t target_id, const void *codeptr_ra) {
     cbenter;
     assert(codeptr_ra != 0);
     printf("Callback Target: target_id=%lu kind=%d endpoint=%d device_num=%d code=%p\n",
@@ -716,23 +732,16 @@ static void on_ompt_callback_target
 }
 
 // Target launch
-static void on_ompt_callback_target_submit
-(
- ompt_id_t target_id,
- ompt_id_t host_op_id,
- unsigned int requested_num_teams
- ) {
+static void on_ompt_callback_target_submit ( ompt_id_t target_id,
+        ompt_id_t host_op_id, unsigned int requested_num_teams) {
     cbenter;
     printf("  Callback Submit: target_id=%lu host_op_id=%lu req_num_teams=%d\n",
             target_id, host_op_id, requested_num_teams);
 }
 
 // Init functions
-int ompt_initialize(
-        ompt_function_lookup_t lookup,
-        int initial_device_num,
-        ompt_data_t *tool_data)
-{
+int ompt_initialize( ompt_function_lookup_t lookup, int initial_device_num,
+        ompt_data_t *tool_data) {
     rcenter;
     // get ALL functions! except the target related ones. get those later.
     ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
@@ -773,14 +782,12 @@ int ompt_initialize(
     register_ompt_callback(ompt_callback_target_data_op); // = 9,
     register_ompt_callback(ompt_callback_target_submit); // = 10,
     register_ompt_callback(ompt_callback_control_tool); // = 11,
-    register_ompt_callback(ompt_callback_device_initialize);
-    register_ompt_callback(ompt_callback_device_finalize);
-    register_ompt_callback(ompt_callback_device_load);
+    register_ompt_callback(ompt_callback_device_initialize); // = 12
+    register_ompt_callback(ompt_callback_device_finalize); // = 13
+    register_ompt_callback(ompt_callback_device_load); // = 14
     register_ompt_callback(ompt_callback_device_unload); // = 15,
-#if 0
     register_ompt_callback(ompt_callback_sync_region_wait); // = 16,
     register_ompt_callback(ompt_callback_mutex_released); // = 17,
-#endif
     register_ompt_callback(ompt_callback_dependences); // = 18,
     register_ompt_callback(ompt_callback_task_dependence); // = 19,
     register_ompt_callback(ompt_callback_work); // = 20,
@@ -788,23 +795,17 @@ int ompt_initialize(
     //register_ompt_callback(ompt_callback_master /*(deprecated)*/ = ompt_callback_masked,
     register_ompt_callback(ompt_callback_target_map); // = 22,
     register_ompt_callback(ompt_callback_sync_region); // = 23,
-#if 0
     register_ompt_callback(ompt_callback_lock_init); // = 24,
     register_ompt_callback(ompt_callback_lock_destroy); // = 25,
-#endif
     register_ompt_callback(ompt_callback_mutex_acquire); // = 26,
-#if 0
     register_ompt_callback(ompt_callback_mutex_acquired); // = 27,
-#endif
     register_ompt_callback(ompt_callback_nest_lock); // = 28,
     register_ompt_callback(ompt_callback_flush); // = 29,
     register_ompt_callback(ompt_callback_cancel); // = 30,
-#if 0
     register_ompt_callback(ompt_callback_reduction); // = 31,
-#endif
     register_ompt_callback(ompt_callback_dispatch); // = 32,
     register_ompt_callback(ompt_callback_target_emi); // = 33,
-    register_ompt_callback(ompt_callback_target_data_op_emi);
+    register_ompt_callback(ompt_callback_target_data_op_emi); // = 34
     register_ompt_callback(ompt_callback_target_submit_emi); // = 35,
     register_ompt_callback(ompt_callback_target_map_emi); // = 36,
     register_ompt_callback(ompt_callback_error); // = 37
@@ -822,10 +823,8 @@ void ompt_finalize(ompt_data_t *tool_data) {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    ompt_start_tool_result_t *ompt_start_tool(
-            unsigned int omp_version,
-            const char *runtime_version)
-    {
+    ompt_start_tool_result_t *ompt_start_tool( unsigned int omp_version,
+            const char *runtime_version) {
         rcenter;
         static ompt_start_tool_result_t ompt_start_tool_result = {&ompt_initialize,&ompt_finalize, 0};
         rcexit;
@@ -856,16 +855,12 @@ int preload_main(int argc, char** argv, char** envp) {
     return ret;
 }
 
-typedef int
-(*preload_libc_start_main)(int (*)(int, char**, char**), int, char**,
-        int (*)(int, char**, char**), void (*)(void),
-        void (*)(void), void*);
+typedef int (*preload_libc_start_main)(int (*)(int, char**, char**), int,
+        char**, int (*)(int, char**, char**), void (*)(void), void (*)(void), void*);
 
-    int
-__libc_start_main(int (*_main)(int, char**, char**), int _argc, char** _argv,
-        int (*_init)(int, char**, char**), void (*_fini)(void),
-        void (*_rtld_fini)(void), void* _stack_end)
-{
+int __libc_start_main(int (*_main)(int, char**, char**), int _argc,
+        char** _argv, int (*_init)(int, char**, char**), void (*_fini)(void),
+        void (*_rtld_fini)(void), void* _stack_end) {
     rcenter;
     // prevent re-entry
     static int _reentry = 0;
@@ -883,7 +878,7 @@ __libc_start_main(int (*_main)(int, char**, char**), int _argc, char** _argv,
 
     int rc;
     if((user_main != nullptr) &&
-       ((void*)user_main != _this_func)) {
+            ((void*)user_main != _this_func)) {
         rc = user_main(preload_main, _argc, _argv, _init, _fini, _rtld_fini, _stack_end);
     } else {
         fputs("Error! preload could not find __libc_start_main!", stderr);
