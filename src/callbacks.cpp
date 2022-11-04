@@ -10,6 +10,11 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <execinfo.h>
+#include <stack>
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <map>
 
 #if defined(__GNUC__)
 #define __THIS_FUNCTION__ __PRETTY_FUNCTION__
@@ -22,7 +27,120 @@
 // Available at $INSTALL_DIR/include/omp-tools.h
 #include <omp-tools.h>
 
+// OMPT entry point handles
+static ompt_set_callback_t ompt_set_callback = NULL;
+/* Function pointers.  These are all queried from the runtime during
+ * ompt_initialize() */
+static ompt_finalize_tool_t ompt_finalize_tool = NULL;
+static ompt_get_task_info_t ompt_get_task_info = NULL;
+static ompt_get_thread_data_t ompt_get_thread_data = NULL;
+static ompt_get_parallel_info_t ompt_get_parallel_info = NULL;
+static ompt_get_unique_id_t ompt_get_unique_id = NULL;
+static ompt_get_num_places_t ompt_get_num_places = NULL;
+static ompt_get_place_proc_ids_t ompt_get_place_proc_ids = NULL;
+static ompt_get_place_num_t ompt_get_place_num = NULL;
+static ompt_get_partition_place_nums_t ompt_get_partition_place_nums = NULL;
+static ompt_get_proc_id_t ompt_get_proc_id = NULL;
+static ompt_enumerate_states_t ompt_enumerate_states = NULL;
+static ompt_enumerate_mutex_impls_t ompt_enumerate_mutex_impls = NULL;
+
+static ompt_set_trace_ompt_t ompt_set_trace_ompt = NULL;
+static ompt_start_trace_t ompt_start_trace = NULL;
+static ompt_flush_trace_t ompt_flush_trace = NULL;
+static ompt_stop_trace_t ompt_stop_trace = NULL;
+static ompt_get_record_ompt_t ompt_get_record_ompt = NULL;
+static ompt_advance_buffer_cursor_t ompt_advance_buffer_cursor = NULL;
+
 #define EP(x) [x] = #x  /* ENUM PRINT */
+
+typedef enum stack_type_t {
+    thread_stack = 0,
+    parallel_stack,
+    implicit_task_stack,
+    work_stack,
+    mask_stack,
+    sync_stack,
+    nest_lock_stack,
+    target_emi_stack,
+    target_data_op_emi_stack,
+    target_submit_emi_stack
+} stack_type_t;
+
+const char* stack_type_strings[] = {
+    EP(thread_stack),
+    EP(parallel_stack),
+    EP(implicit_task_stack),
+    EP(work_stack),
+    EP(mask_stack),
+    EP(sync_stack),
+    EP(nest_lock_stack),
+    EP(target_emi_stack),
+    EP(target_data_op_emi_stack),
+    EP(target_submit_emi_stack)
+};
+
+class timer_stack {
+    public:
+        timer_stack(stack_type_t stype) : _stype(stype) {
+            //std::cout << "New stack! '" << stack_type_strings[stype] << "'" << std::endl;
+            };
+        ~timer_stack() {
+            std::stringstream ss;
+            ss << "Mismatched events in " << stack_type_strings[_stype] << " stack: [";
+            bool found = false;
+            while(theStack.size() > 0) {
+                uint64_t tid = theStack.top();
+                if (found) ss << ",";
+                ss << tid;
+                found = true;
+                theStack.pop();
+            }
+            if (found) {
+                ss << "]" << std::endl;
+                std::cerr << ss.rdbuf();
+            }
+        };
+        void push(uint64_t tid) {
+            //std::cout << "Pushing " << stack_type_strings[_stype] << " " << tid << std::endl;
+            theStack.push(tid);
+        }
+        void pop(uint64_t tid) {
+            //std::cout << "Popping " << stack_type_strings[_stype] << " " << tid << std::endl;
+            if (theStack.size() == 0) {
+                std::cerr << "Empty stack!" << std::endl;
+                return;
+            }
+            uint64_t tmp = theStack.top();
+            //std::cout << "Top is " << tmp << std::endl;
+            if (tmp == tid)
+                theStack.pop();
+            //std::cout << "Success!" << std::endl;
+        }
+    private:
+        stack_type_t _stype;
+        std::stack<uint64_t> theStack;
+};
+
+class scopedMap : public std::map<stack_type_t, timer_stack*> {
+    public:
+        scopedMap() {};
+        ~scopedMap() {
+            ompt_finalize_tool();
+            for (auto it = cbegin(); it != cend();) {
+                delete it->second;
+                it = erase(it);
+            }
+        }
+};
+
+timer_stack* getStack(stack_type_t stype) {
+    static thread_local scopedMap _theStackMap;
+    auto it = _theStackMap.find(stype);
+    if (it == _theStackMap.end()) {
+        _theStackMap[stype] = new timer_stack(stype);
+    }
+    return _theStackMap[stype];
+}
 
 const char* ompt_set_result_strings[] = {
     EP(ompt_set_error),
@@ -146,11 +264,14 @@ void get_flags(int flags) {
 static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     ompt_data_t *thread_data) {
     rcenter;
+    if (thread_data->value == 0) thread_data->value = ompt_get_unique_id();
+    getStack(thread_stack)->push(thread_data->value);
     rcexit;
 }
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     rcenter;
+    getStack(thread_stack)->pop(thread_data->value);
     rcexit;
 }
 
@@ -160,12 +281,15 @@ static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
     rcenter;
     printf("Team size: %u, flags: %x\n", requested_team_size, flags);
     get_name(codeptr_ra);
+    if (parallel_data->value == 0) parallel_data->value = ompt_get_unique_id();
+    getStack(parallel_stack)->push(parallel_data->value);
     rcexit;
 }
 
 static void on_ompt_callback_parallel_end( ompt_data_t *parallel_data,
     ompt_data_t *parent_task_data, int flags, const void *codeptr_ra) {
     rcenter;
+    getStack(parallel_stack)->pop(parallel_data->value);
     rcexit;
 }
 
@@ -197,12 +321,22 @@ static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data, ompt_ta
     rcexit;
 }
 
+void stackEndpoint(stack_type_t stype, uint64_t& id, ompt_scope_endpoint_t endpoint) {
+    if (id == 0) id = ompt_get_unique_id();
+    if (endpoint == ompt_scope_begin) {
+        getStack(stype)->push(id);
+    } else {
+        getStack(stype)->pop(id);
+    }
+}
+
 static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
     ompt_data_t *parallel_data, ompt_data_t *task_data,
     unsigned int actual_parallelism, unsigned int index, int flags) {
     rcenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_flags(flags);
+    stackEndpoint(implicit_task_stack, task_data->value, endpoint);
     rcexit;
 }
 
@@ -222,6 +356,7 @@ static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t e
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     printf("\tcount: %lu\n", count);
     get_name(codeptr_ra);
+    stackEndpoint(work_stack, task_data->value, endpoint);
     rcexit;
 }
 
@@ -230,6 +365,7 @@ static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
     rcenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
+    stackEndpoint(mask_stack, task_data->value, endpoint);
     rcexit;
 }
 
@@ -250,6 +386,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
     printf("\tKind: %s\n", ompt_sync_region_strings[kind]);
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
+    stackEndpoint(sync_stack, task_data->value, endpoint);
     rcexit;
 }
 
@@ -275,6 +412,7 @@ static void on_ompt_callback_nest_lock(ompt_scope_endpoint_t endpoint,
     printf("\tWait_id: %lu\n", wait_id);
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
+    stackEndpoint(nest_lock_stack, wait_id, endpoint);
     rcexit;
 }
 
@@ -299,6 +437,7 @@ static void on_ompt_callback_target_emi(ompt_target_t kind,
     rcenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
+    stackEndpoint(target_emi_stack, task_data->value, endpoint);
     rcexit;
 }
 
@@ -310,6 +449,7 @@ static void on_ompt_callback_target_data_op_emi (ompt_scope_endpoint_t endpoint,
     rcenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
+    stackEndpoint(target_data_op_emi_stack, target_task_data->value, endpoint);
     rcexit;
 }
 
@@ -318,6 +458,7 @@ static void on_ompt_callback_target_submit_emi (ompt_scope_endpoint_t endpoint,
     unsigned int requested_num_teams) {
     rcenter;
     printf("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
+    stackEndpoint(target_submit_emi_stack, target_data->value, endpoint);
     rcexit;
 }
 
@@ -403,30 +544,6 @@ static void delete_buffer_ompt(ompt_buffer_t *buffer) {
     printf("Deallocated %p\n", buffer);
     rcexit;
 }
-
-// OMPT entry point handles
-static ompt_set_callback_t ompt_set_callback = NULL;
-/* Function pointers.  These are all queried from the runtime during
- * ompt_initialize() */
-static ompt_finalize_tool_t ompt_finalize_tool = NULL;
-static ompt_get_task_info_t ompt_get_task_info = NULL;
-static ompt_get_thread_data_t ompt_get_thread_data = NULL;
-static ompt_get_parallel_info_t ompt_get_parallel_info = NULL;
-static ompt_get_unique_id_t ompt_get_unique_id = NULL;
-static ompt_get_num_places_t ompt_get_num_places = NULL;
-static ompt_get_place_proc_ids_t ompt_get_place_proc_ids = NULL;
-static ompt_get_place_num_t ompt_get_place_num = NULL;
-static ompt_get_partition_place_nums_t ompt_get_partition_place_nums = NULL;
-static ompt_get_proc_id_t ompt_get_proc_id = NULL;
-static ompt_enumerate_states_t ompt_enumerate_states = NULL;
-static ompt_enumerate_mutex_impls_t ompt_enumerate_mutex_impls = NULL;
-
-static ompt_set_trace_ompt_t ompt_set_trace_ompt = NULL;
-static ompt_start_trace_t ompt_start_trace = NULL;
-static ompt_flush_trace_t ompt_flush_trace = NULL;
-static ompt_stop_trace_t ompt_stop_trace = NULL;
-static ompt_get_record_ompt_t ompt_get_record_ompt = NULL;
-static ompt_advance_buffer_cursor_t ompt_advance_buffer_cursor = NULL;
 
 // OMPT callbacks
 

@@ -1,4 +1,5 @@
-module load rocmmod5.2.0
+module purge
+module load rocmmod5.2.0 cmake
 export CC=amdclang
 export CXX=hipcc
 export OMP_TOOL=enabled

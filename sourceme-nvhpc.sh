@@ -1,4 +1,5 @@
-module load nvhpc/22.9
+module purge
+module load nvhpc/22.9 cmake
 export CC=nvc
 export CXX=nvc++
 export OMP_TOOL=enabled

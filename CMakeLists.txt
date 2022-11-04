@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 
 project(ompt_tt VERSION 1.0 DESCRIPTION "OMPT Test Tool" LANGUAGES CXX C)
 
+set(CMAKE_CXX_STANDARD_COMPUTED_DEFAULT 14)
+set(CMAKE_CXX_EXTENSIONS_COMPUTED_DEFAULT OFF)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 find_package(OpenMP REQUIRED)
 
 message(INFO "${CMAKE_CXX_COMPILER_ID}")
@@ -17,6 +23,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 else()
     target_link_libraries(ompt_tt PUBLIC OpenMP::OpenMP_CXX)
 endif()
+set_property(TARGET ompt_tt PROPERTY CXX_STANDARD 14)
 
 add_executable(simple src/matmult.c src/matmult_initialize.c src/matmult_initialize.h)
 
@@ -32,6 +39,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 else()
     target_link_libraries(simple PUBLIC ompt_tt OpenMP::OpenMP_CXX)
 endif()
+set_property(TARGET simple PROPERTY CXX_STANDARD 14)
 
 function(dump_cmake_variables)
     get_cmake_property(_variableNames VARIABLES)
