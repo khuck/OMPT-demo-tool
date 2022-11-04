@@ -10,3 +10,4 @@ export OMP_TARGET_OFFLOAD=mandatory
 #export OMP_TARGET_INFO=4
 #export OMP_TOOL_VERBOSE_INIT=stdout
 export OMP_DISPLAY_ENV=true
+export OMP_NUM_THREADS=4

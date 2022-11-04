@@ -15,6 +15,7 @@
 #include <sstream>
 #include <iostream>
 #include <map>
+#include <mutex>
 
 #if defined(__GNUC__)
 #define __THIS_FUNCTION__ __PRETTY_FUNCTION__
@@ -99,6 +100,8 @@ class timer_stack {
             }
             if (found) {
                 ss << "]" << std::endl;
+                static std::mutex foo;
+                std::lock_guard<std::mutex> lk(foo);
                 std::cerr << ss.rdbuf();
             }
         };
