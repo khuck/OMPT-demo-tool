@@ -712,7 +712,8 @@ static void on_ompt_callback_target_data_op ( ompt_id_t target_id,
         int src_device_num, void *dest_addr, int dest_device_num, size_t bytes,
         const void *codeptr_ra) {
     cbenter;
-    assert(codeptr_ra != 0);
+    /* Intel doesn't provide a codeptr_ra value for data operations */
+    // assert(codeptr_ra != 0);
     // Both src and dest must not be null
     assert(src_addr != 0 || dest_addr != 0);
     printf("  Callback DataOp: target_id=%lu host_op_id=%lu optype=%d src=%p src_device_num=%d "

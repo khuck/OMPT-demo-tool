@@ -150,6 +150,8 @@ double do_work(void) {
 
 int main (int argc, char *argv[])
 {
+  printf("There are %d non-host devices.\n", omp_get_num_devices());
+
   int i;
   for (i = 0 ; i < MAX_ITERATIONS ; i++) {
     printf("Iteration %d of %d:...\n", i, MAX_ITERATIONS);

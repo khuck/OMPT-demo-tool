@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <omp.h>
 
-void daxpy( double * __restrict__ a, double * __restrict__ b,
-        double scalar, int num_elements ) {
+void daxpy( float * __restrict__ a, float * __restrict__ b,
+        float scalar, int num_elements ) {
 
 #pragma omp target teams distribute parallel for simd map(tofrom:a[0:num_elements]) map(to:b[0:num_elements])
       for (size_t j=0; j<num_elements; j++) {
@@ -17,16 +17,18 @@ void daxpy( double * __restrict__ a, double * __restrict__ b,
 
 int main( int argc, char** argv )
 {
-  double*   a = NULL;
-  double*   b = NULL;
-  double*   c = NULL;
-  double scalar = 8.0;
+  printf("There are %d non-host devices.\n", omp_get_num_devices());
+
+  float*   a = NULL;
+  float*   b = NULL;
+  float*   c = NULL;
+  float scalar = 8.0;
   int num_errors = 0;
   int num_elements = 1024;
 
-  a = (double *) malloc( sizeof(double)*num_elements );
-  b = (double *) malloc( sizeof(double)*num_elements );
-  c = (double *) malloc( sizeof(double)*num_elements );
+  a = (float *) malloc( sizeof(float)*num_elements );
+  b = (float *) malloc( sizeof(float)*num_elements );
+  c = (float *) malloc( sizeof(float)*num_elements );
 
   // initialize on the host
   for (size_t j=0; j<num_elements; j++) {
@@ -47,7 +49,7 @@ int main( int argc, char** argv )
 
   // error checking
   for (size_t j=0; j<num_elements; j++) {
-      if( fabs(c[j] - (double)j*scalar*scalar) > 0.000001  ) {
+      if( fabs(c[j] - (float)j*scalar*scalar) > 0.000001  ) {
       num_errors++;
     }
     }

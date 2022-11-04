@@ -9,19 +9,19 @@
 
 int run_cpu( int argc, char** argv ) {
   printf( "The total memory allocated is %7.3lf MB.\n",
-          2.0*sizeof(double)*ARRAY_SIZE/1024/1024 );
+          2.0*sizeof(float)*ARRAY_SIZE/1024/1024 );
 
-  double* a          = NULL;
-  double* b          = NULL;
+  float* a          = NULL;
+  float* b          = NULL;
   int     num_errors = 0;
-  double  time       = 0;
-  double  start_time = 0;
-  double  scalar     = 8.0;
+  float  time       = 0;
+  float  start_time = 0;
+  float  scalar     = 8.0;
   int     iterations = ITERATIONS;
-  double  iteration_time[ITERATIONS];
+  float  iteration_time[ITERATIONS];
 
-  a = (double *) malloc( sizeof(double)*ARRAY_SIZE );
-  b = (double *) malloc( sizeof(double)*ARRAY_SIZE );
+  a = (float *) malloc( sizeof(float)*ARRAY_SIZE );
+  b = (float *) malloc( sizeof(float)*ARRAY_SIZE );
 
   // initialize on the host
 #pragma omp parallel for
@@ -49,7 +49,7 @@ for (size_t j=0; j<ARRAY_SIZE; j++)
 
   // error checking
   for (size_t j=0; j<ARRAY_SIZE; j++) {
-      if( fabs(a[j] - (double)j*iterations*scalar) > 0.000001  ) {
+      if( fabs(a[j] - (float)j*iterations*scalar) > 0.000001  ) {
       num_errors++;
     }
     }
@@ -58,8 +58,9 @@ for (size_t j=0; j<ARRAY_SIZE; j++)
   free(b);
 
   if( num_errors == 0 ) printf( "Success!\n" );
+  else printf("Found %d errors!\n", num_errors);
 
-  assert(num_errors == 0);
+  //assert(num_errors == 0);
 
   return 0;
 }
@@ -67,19 +68,19 @@ for (size_t j=0; j<ARRAY_SIZE; j++)
 int run_gpu( int argc, char** argv )
 {
   printf( "The total memory allocated is %7.3lf MB.\n",
-          2.0*sizeof(double)*ARRAY_SIZE/1024/1024 );
+          2.0*sizeof(float)*ARRAY_SIZE/1024/1024 );
 
-  double* a          = NULL;
-  double* b          = NULL;
+  float* a          = NULL;
+  float* b          = NULL;
   int     num_errors = 0;
-  double  time       = 0;
-  double  start_time = 0;
-  double  scalar     = 8.0;
+  float  time       = 0;
+  float  start_time = 0;
+  float  scalar     = 8.0;
   int     iterations = ITERATIONS;
-  double  iteration_time[ITERATIONS];
+  float  iteration_time[ITERATIONS];
 
-  a = (double *) malloc( sizeof(double)*ARRAY_SIZE );
-  b = (double *) malloc( sizeof(double)*ARRAY_SIZE );
+  a = (float *) malloc( sizeof(float)*ARRAY_SIZE );
+  b = (float *) malloc( sizeof(float)*ARRAY_SIZE );
 
   // initialize on the host
 #pragma omp parallel for
@@ -112,7 +113,7 @@ for (size_t j=0; j<ARRAY_SIZE; j++)
 
   // error checking
   for (size_t j=0; j<ARRAY_SIZE; j++) {
-      if( fabs(a[j] - (double)j*iterations*scalar) > 0.000001  ) {
+      if( fabs(a[j] - (float)j*iterations*scalar) > 0.000001  ) {
       num_errors++;
     }
     }
@@ -124,14 +125,17 @@ for (size_t j=0; j<ARRAY_SIZE; j++)
   free(b);
 
   if( num_errors == 0 ) printf( "Success!\n" );
+  else printf("Found %d errors!\n", num_errors);
 
-  assert(num_errors == 0);
+  //assert(num_errors == 0);
 
   return 0;
 }
 
 
 int main( int argc, char** argv ) {
+  printf("There are %d non-host devices.\n", omp_get_num_devices());
+
     run_cpu(argc, argv);
     run_gpu(argc, argv);
 }

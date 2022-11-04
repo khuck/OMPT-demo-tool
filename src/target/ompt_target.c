@@ -7,9 +7,9 @@
 int main( int argc, char** argv )
 {
 
-  double*   a = NULL;
-  double*   b = NULL;
-  double scalar = 8.0;
+  float*   a = NULL;
+  float*   b = NULL;
+  float scalar = 8.0;
   int num_errors = 0;
   int num_elements = 1024;
 
@@ -35,8 +35,8 @@ int main( int argc, char** argv )
     omp_get_num_teams(), i);
   }
 */
-  a = (double *) malloc( sizeof(double)*num_elements );
-  b = (double *) malloc( sizeof(double)*num_elements );
+  a = (float *) malloc( sizeof(float)*num_elements );
+  b = (float *) malloc( sizeof(float)*num_elements );
 
   // initialize on the host
   #pragma omp parallel for
@@ -55,7 +55,7 @@ int main( int argc, char** argv )
   // error checking
   #pragma omp parallel for reduction(+:num_errors)
   for (size_t j=0; j<num_elements; j++) {
-    if( fabs(a[j] - (double)j*scalar) > 0.000001  ) {
+    if( fabs(a[j] - (float)j*scalar) > 0.000001  ) {
       num_errors++;
     }
   }
