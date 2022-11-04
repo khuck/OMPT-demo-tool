@@ -25,7 +25,10 @@ else()
 endif()
 set_property(TARGET ompt_tt PROPERTY CXX_STANDARD 14)
 
-add_executable(simple src/matmult.c src/matmult_initialize.c src/matmult_initialize.h)
+enable_testing()
+
+FILE(GLOB simple_sources src/simple/*.*)
+add_executable(simple ${simple_sources})
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "NVHPC")
     # Use the tool-enabled OpenMP runtime
@@ -39,7 +42,46 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 else()
     target_link_libraries(simple PUBLIC ompt_tt OpenMP::OpenMP_CXX)
 endif()
-set_property(TARGET simple PROPERTY CXX_STANDARD 14)
+add_test ("test_simple" simple)
+
+FILE(GLOB mandel_sources src/mandel/*.*)
+add_executable(mandel ${mandel_sources})
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "NVHPC")
+    # Use the tool-enabled OpenMP runtime
+    target_compile_options(mandel PRIVATE "-mp=ompt,gpu")
+    target_link_options(mandel PRIVATE "-mp=ompt,gpu")
+    target_link_libraries(mandel PUBLIC ompt_tt)
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    target_compile_options(mandel PRIVATE -fopenmp -target x86_64-pc-linux-gnu -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a)
+    target_link_options(mandel PRIVATE -fopenmp -target x86_64-pc-linux-gnu -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a)
+    target_link_libraries(mandel PUBLIC ompt_tt OpenMP::OpenMP_CXX)
+else()
+    target_link_libraries(mandel PUBLIC ompt_tt OpenMP::OpenMP_CXX)
+endif()
+add_test ("test_mandel" mandel)
+
+set(target_programs ompt_target ompt_target_matmult ompt_target_daxpy ompt_target_vector_add)
+
+foreach(example_program ${target_programs})
+    add_executable(${example_program} src/target/${example_program}.c)
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "NVHPC")
+        # Use the tool-enabled OpenMP runtime
+        target_compile_options(${example_program} PRIVATE "-mp=ompt,gpu")
+        target_link_options(${example_program} PRIVATE "-mp=ompt,gpu")
+        target_link_libraries(${example_program} PUBLIC ompt_tt)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        target_compile_options(${example_program} PRIVATE -fopenmp -target x86_64-pc-linux-gnu -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a)
+        target_link_options(${example_program} PRIVATE -fopenmp -target x86_64-pc-linux-gnu -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx90a)
+        target_link_libraries(${example_program} PUBLIC ompt_tt OpenMP::OpenMP_CXX)
+    else()
+        target_link_libraries(${example_program} PUBLIC ompt_tt OpenMP::OpenMP_CXX)
+    endif()
+    add_test ("test_${example_program}" ${example_program})
+endforeach()
+
+add_custom_target(tests)
+add_custom_command(TARGET tests POST_BUILD COMMAND ctest -R test --output-on-failure --timeout 100)
 
 function(dump_cmake_variables)
     get_cmake_property(_variableNames VARIABLES)
