@@ -1,3 +1,7 @@
+/* THis code is based on an example from AMD to test the hipcc/clang/flang
+ * openmp target offload support. It was expanded to cover all OMPT
+ * callbacks. */
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
 #endif
