@@ -31,7 +31,7 @@ bool& getverb() {
     return verbose;
 }
 
-int failed{0};
+bool failed{false};
 
 void VERB(const char *format, ...)
 {
@@ -132,7 +132,7 @@ class timer_stack {
                 static std::mutex foo;
                 std::lock_guard<std::mutex> lk(foo);
                 std::cerr << ss.rdbuf() << std::endl;
-                failed=1;
+                failed=true;
             }
         };
         void push(uint64_t tid) {
@@ -861,6 +861,7 @@ int ompt_initialize( ompt_function_lookup_t lookup, int initial_device_num,
 
 void ompt_finalize(ompt_data_t *tool_data) {
     rcenter;
+    if (failed) abort();
     rcexit;
 }
 
@@ -902,7 +903,7 @@ int preload_main(int argc, char** argv, char** envp) {
     stop_trace();
     ompt_finalize_tool();
     rcexit;
-    return ret + failed;
+    return ret;
 }
 
 typedef int (*preload_libc_start_main)(int (*)(int, char**, char**), int,
