@@ -31,7 +31,11 @@ bool& getverb() {
     return verbose;
 }
 
-bool failed{false};
+bool& getfailed() {
+    static bool failed{false};
+    printf("failed? %s\n", failed ? "true" : "false");
+    return failed;
+}
 
 void VERB(const char *format, ...)
 {
@@ -132,7 +136,7 @@ class timer_stack {
                 static std::mutex foo;
                 std::lock_guard<std::mutex> lk(foo);
                 std::cerr << ss.rdbuf() << std::endl;
-                failed=true;
+                getfailed()=true;
             }
         };
         void push(uint64_t tid) {
@@ -861,7 +865,6 @@ int ompt_initialize( ompt_function_lookup_t lookup, int initial_device_num,
 
 void ompt_finalize(ompt_data_t *tool_data) {
     rcenter;
-    if (failed) abort();
     rcexit;
 }
 
@@ -897,13 +900,14 @@ int preload_main(int argc, char** argv, char** envp) {
     if(_reentry > 0) return -1;
     _reentry = 1;
     printf("In main wrapper!\n");
+    getfailed()=false;
     int ret = main_real(argc, argv, envp);
     printf("Exiting main wrapper!\n");
     flush_trace();
     stop_trace();
     ompt_finalize_tool();
     rcexit;
-    return ret;
+    return ret + (getfailed() ? 1 : 0);
 }
 
 typedef int (*preload_libc_start_main)(int (*)(int, char**, char**), int,
@@ -936,7 +940,7 @@ int __libc_start_main(int (*_main)(int, char**, char**), int _argc,
         rc = -1;
     }
     rcexit;
-    return rc;
+    return rc + (getfailed() ? 1 : 0);
 }
 
 //#endif

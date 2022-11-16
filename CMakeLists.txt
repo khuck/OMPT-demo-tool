@@ -49,6 +49,7 @@ else()
     target_link_libraries(simple PUBLIC ompt_tt OpenMP::OpenMP_CXX)
 endif()
 add_test ("test_simple" simple)
+set_tests_properties("test_simple" PROPERTIES FAIL_REGULAR_EXPRESSION "[^a-z]Error;ERROR;Failed;Mismatched")
 
 FILE(GLOB mandel_sources src/mandel/*.*)
 add_executable(mandel ${mandel_sources})
@@ -69,6 +70,7 @@ else()
     target_link_libraries(mandel PUBLIC ompt_tt OpenMP::OpenMP_CXX)
 endif()
 add_test ("test_mandel" mandel)
+set_tests_properties("test_mandel" PROPERTIES FAIL_REGULAR_EXPRESSION "[^a-z]Error;ERROR;Failed;Mismatched")
 
 set(target_programs ompt_target ompt_target_matmult ompt_target_daxpy ompt_target_vector_add)
 
@@ -90,6 +92,7 @@ foreach(example_program ${target_programs})
         target_link_libraries(${example_program} PUBLIC ompt_tt OpenMP::OpenMP_CXX)
     endif()
     add_test ("test_${example_program}" ${example_program})
+    set_tests_properties("test_${example_program}" PROPERTIES FAIL_REGULAR_EXPRESSION "[^a-z]Error;ERROR;Failed;Mismatched")
     #add_tests_properties("test_${example_program}" PROPERTIES ENVIRONMENT "OMP_TARGET_OFFLOAD=MANDATORY")
 endforeach()
 
