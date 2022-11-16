@@ -37,24 +37,17 @@ bool& getfailed() {
     return failed;
 }
 
-void VERB(const char *format, ...)
-{
-  if (getverb()) {
-    va_list args;
-    va_start(args, format);
-    printf(format, args);
-    va_end(args);
-  }
-}
+#define VERB(...) if (getverb()) { \
+fprintf( stdout, __VA_ARGS__ ); fflush(stdout); }
 
 #if defined(__GNUC__)
 #define __THIS_FUNCTION__ __PRETTY_FUNCTION__
 #else
 #define __THIS_FUNCTION__ __func__
 #endif
-#define cbenter VERB("callback: %s\n", __THIS_FUNCTION__)
-#define rcenter VERB("Enter: %s\n", __THIS_FUNCTION__)
-#define rcexit VERB("Exit: %s\n\n", __THIS_FUNCTION__)
+#define cbenter if(getverb()) printf("callback: %s\n", __THIS_FUNCTION__)
+#define rcenter if(getverb()) printf("Enter: %s\n", __THIS_FUNCTION__)
+#define rcexit if(getverb()) printf("Exit: %s\n\n", __THIS_FUNCTION__)
 
 // Available at $INSTALL_DIR/include/omp-tools.h
 #include <omp-tools.h>
@@ -877,7 +870,6 @@ extern "C" {
         rcenter;
         auto verbose = getenv("VERBOSE");
         if(verbose != NULL) {
-            printf("going verbose!");
             getverb() = true;
         }
         static ompt_start_tool_result_t ompt_start_tool_result = {&ompt_initialize,&ompt_finalize, 0};
