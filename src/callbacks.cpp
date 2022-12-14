@@ -25,6 +25,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+uint64_t get_unique_id() {
+    static std::atomic<uint64_t> id{0};
+    return ++id;
+}
 
 bool& getverb() {
     static bool verbose{false};
@@ -163,6 +167,7 @@ class timer_stack {
             }
         };
         void push(uint64_t tid) {
+            VERB("\tPushed id: %lu", tid);
             theStack.push(tid);
             count++;
         }
@@ -174,6 +179,7 @@ class timer_stack {
             uint64_t tmp = theStack.top();
             if (tmp == tid)
                 theStack.pop();
+            VERB("\tPopped id: %lu", tid);
         }
     private:
         stack_type_t _stype;
@@ -350,7 +356,7 @@ void get_flags(int flags) {
 static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
         ompt_data_t *thread_data) {
     cbenter;
-    if (thread_data->value == 0) thread_data->value = ompt_get_unique_id();
+    if (thread_data->value == 0) thread_data->value = get_unique_id();
     getStack(thread_stack)->push(thread_data->value);
     cbexit;
 }
@@ -367,7 +373,7 @@ static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
     cbenter;
     VERB("Team size: %u, flags: %x\n", requested_team_size, flags);
     get_name(codeptr_ra);
-    if (parallel_data->value == 0) parallel_data->value = ompt_get_unique_id();
+    if (parallel_data->value == 0) parallel_data->value = get_unique_id();
     getStack(parallel_stack)->push(parallel_data->value);
     cbexit;
 }
@@ -408,7 +414,7 @@ static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data, ompt_ta
 }
 
 void stackEndpoint(stack_type_t stype, uint64_t& id, ompt_scope_endpoint_t endpoint) {
-    if (id == 0) id = ompt_get_unique_id();
+    if (id == 0) id = get_unique_id();
     if (endpoint == ompt_scope_begin) {
         getStack(stype)->push(id);
     } else {
@@ -422,6 +428,7 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
     cbenter;
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_flags(flags);
+    if (endpoint == ompt_scope_begin) task_data->value = 0;
     stackEndpoint(implicit_task_stack, task_data->value, endpoint);
     cbexit;
 }
