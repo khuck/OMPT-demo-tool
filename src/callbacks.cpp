@@ -33,21 +33,51 @@ bool& getverb() {
 
 bool& getfailed() {
     static bool failed{false};
-    printf("failed? %s\n", failed ? "true" : "false");
     return failed;
 }
 
-#define VERB(...) if (getverb()) { \
-fprintf( stdout, __VA_ARGS__ ); fflush(stdout); }
+class scoped_log {
+    public:
+        scoped_log() {
+            char fname[256];
+            sprintf(fname, "log.%lu.txt", thread_count++);
+            fptr = fopen(fname, "w");
+        }
+        ~scoped_log() { fclose(fptr); }
+        FILE* getlog() { return fptr; }
+    private:
+        FILE *fptr;
+        static size_t thread_count;
+};
+size_t scoped_log::thread_count{0};
+
+FILE* getlog() {
+    static thread_local scoped_log log;
+    return log.getlog();
+}
+
+void VERB(const char * format, ...) {
+    va_list args;
+    va_start (args, format);
+    if (getverb()) {
+        vfprintf(stdout, format, args );
+        fflush(stdout);
+    } else {
+        vfprintf(getlog(), format, args );
+        fflush(getlog());
+    }
+    va_end (args);
+}
 
 #if defined(__GNUC__)
 #define __THIS_FUNCTION__ __PRETTY_FUNCTION__
 #else
 #define __THIS_FUNCTION__ __func__
 #endif
-#define cbenter if(getverb()) printf("callback: %s\n", __THIS_FUNCTION__)
-#define rcenter if(getverb()) printf("Enter: %s\n", __THIS_FUNCTION__)
-#define rcexit if(getverb()) printf("Exit: %s\n\n", __THIS_FUNCTION__)
+#define cbenter VERB("callback: %s\n", __THIS_FUNCTION__)
+#define cbexit VERB("\n")
+#define rcenter VERB("Enter: %s\n", __THIS_FUNCTION__)
+#define rcexit VERB("Exit: %s\n\n", __THIS_FUNCTION__)
 
 // Available at $INSTALL_DIR/include/omp-tools.h
 #include <omp-tools.h>
@@ -186,6 +216,7 @@ timer_stack* getStack(stack_type_t stype) {
 }
 
 const char* ompt_set_result_strings[] = {
+    // starts with 0
     EP(ompt_set_error),
     EP(ompt_set_never),
     EP(ompt_set_impossible),
@@ -195,6 +226,8 @@ const char* ompt_set_result_strings[] = {
 };
 
 const char* ompt_work_strings[] = {
+    "0",
+    // starts with 1!
     EP(ompt_work_loop),
     EP(ompt_work_sections),
     EP(ompt_work_single_executor),
@@ -210,12 +243,16 @@ const char* ompt_work_strings[] = {
 };
 
 const char* ompt_scope_endpoint_strings[] = {
+    "0",
+    // starts with 1!
     EP(ompt_scope_begin),
     EP(ompt_scope_end),
     EP(ompt_scope_beginend)
 };
 
 const char* ompt_sync_region_strings[] = {
+    "0",
+    // starts with 1!
     EP(ompt_sync_region_barrier),
     EP(ompt_sync_region_barrier_implicit),
     EP(ompt_sync_region_barrier_explicit),
@@ -229,6 +266,8 @@ const char* ompt_sync_region_strings[] = {
 };
 
 const char* ompt_mutex_strings[] = {
+    "0",
+    // starts with 1!
     EP(ompt_mutex_lock),
     EP(ompt_mutex_test_lock),
     EP(ompt_mutex_nest_lock),
@@ -239,6 +278,8 @@ const char* ompt_mutex_strings[] = {
 };
 
 const char* ompt_severity_strings[] = {
+    "0",
+    // starts with 1!
     EP(ompt_warning),
     EP(ompt_fatal)
 };
@@ -254,11 +295,11 @@ const char* ompt_severity_strings[] = {
             case ompt_set_impossible: \
             case ompt_set_sometimes: \
             case ompt_set_sometimes_paired: \
-                printf("Could not register callback '" #name "' - %s\n", \
+                VERB("Could not register callback '" #name "' - %s\n", \
                 ompt_set_result_strings[rc]); \
                 break; \
             default: \
-                printf("Registered callback '" #name "' - %s\n", \
+                VERB("Registered callback '" #name "' - %s\n", \
                 ompt_set_result_strings[rc]); \
         } \
     } while (0)
@@ -311,11 +352,13 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     cbenter;
     if (thread_data->value == 0) thread_data->value = ompt_get_unique_id();
     getStack(thread_stack)->push(thread_data->value);
+    cbexit;
 }
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     cbenter;
     getStack(thread_stack)->pop(thread_data->value);
+    cbexit;
 }
 
 static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
@@ -326,12 +369,14 @@ static void on_ompt_callback_parallel_begin( ompt_data_t *parent_task_data,
     get_name(codeptr_ra);
     if (parallel_data->value == 0) parallel_data->value = ompt_get_unique_id();
     getStack(parallel_stack)->push(parallel_data->value);
+    cbexit;
 }
 
 static void on_ompt_callback_parallel_end( ompt_data_t *parallel_data,
         ompt_data_t *parent_task_data, int flags, const void *codeptr_ra) {
     cbenter;
     getStack(parallel_stack)->pop(parallel_data->value);
+    cbexit;
 }
 
 static void on_ompt_callback_task_create(ompt_data_t *encountering_task_data,
@@ -339,23 +384,27 @@ static void on_ompt_callback_task_create(ompt_data_t *encountering_task_data,
         int flags, int has_dependences, const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_dependences(ompt_data_t *src_task_data,
         const ompt_dependence_t *deps, int ndeps) {
     cbenter;
     VERB("Source: %lu, ndeps: %d\n", src_task_data->value, ndeps);
+    cbexit;
 }
 
 static void on_ompt_callback_task_dependence(ompt_data_t *src_task_data,
         ompt_data_t *sink_task_data) {
     cbenter;
     VERB("Source: %lu, sink: %lu\n", src_task_data->value, sink_task_data->value);
+    cbexit;
 }
 
 static void on_ompt_callback_task_schedule(ompt_data_t *prior_task_data, ompt_task_status_t prior_task_status,
         ompt_data_t *next_task_data) {
     cbenter;
+    cbexit;
 }
 
 void stackEndpoint(stack_type_t stype, uint64_t& id, ompt_scope_endpoint_t endpoint) {
@@ -374,12 +423,14 @@ static void on_ompt_callback_implicit_task(ompt_scope_endpoint_t endpoint,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_flags(flags);
     stackEndpoint(implicit_task_stack, task_data->value, endpoint);
+    cbexit;
 }
 
 static int on_ompt_callback_control_tool(uint64_t command, uint64_t modifier,
         void *arg, const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
+    cbexit;
     return 0;
 }
 
@@ -392,6 +443,7 @@ static void on_ompt_callback_work(ompt_work_t work_type, ompt_scope_endpoint_t e
     VERB("\tcount: %lu\n", count);
     get_name(codeptr_ra);
     stackEndpoint(work_stack, task_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
@@ -400,6 +452,7 @@ static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(mask_stack, task_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_target_map(ompt_id_t target_id,
@@ -409,6 +462,7 @@ static void on_ompt_callback_target_map(ompt_id_t target_id,
     VERB("\tTarget: %lu, nitems: %u, host_addr: %p, device_addr: %p, bytes: %lu, flags: %u",
             target_id, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
@@ -419,6 +473,7 @@ static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(sync_stack, task_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_mutex_acquire(ompt_mutex_t kind,
@@ -428,11 +483,13 @@ static void on_ompt_callback_mutex_acquire(ompt_mutex_t kind,
     VERB("\tKind: %s\n", ompt_mutex_strings[kind]);
     VERB("\thint: %u, impl: %u, wait_id: %lu\n", hint, impl, wait_id);
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_dispatch(ompt_data_t *parallel_data,
         ompt_data_t *task_data, ompt_dispatch_t kind, ompt_data_t instance) {
     cbenter;
+    cbexit;
 }
 
 static void on_ompt_callback_nest_lock(ompt_scope_endpoint_t endpoint,
@@ -442,18 +499,21 @@ static void on_ompt_callback_nest_lock(ompt_scope_endpoint_t endpoint,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(nest_lock_stack, wait_id, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_flush(ompt_data_t *thread_data,
         const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_cancel(ompt_data_t *task_data, int flags,
         const void *codeptr_ra) {
     cbenter;
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_reduction(ompt_sync_region_t kind,
@@ -464,6 +524,7 @@ static void on_ompt_callback_reduction(ompt_sync_region_t kind,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(sync_stack, task_data->value, endpoint);
+    cbexit;
 }
 #define ompt_callback_reduction_t ompt_callback_sync_region_t
 
@@ -475,6 +536,7 @@ static void on_ompt_callback_target_emi(ompt_target_t kind,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(target_emi_stack, task_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_target_data_op_emi (ompt_scope_endpoint_t endpoint,
@@ -486,6 +548,7 @@ static void on_ompt_callback_target_data_op_emi (ompt_scope_endpoint_t endpoint,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(target_data_op_emi_stack, target_task_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_target_submit_emi (ompt_scope_endpoint_t endpoint,
@@ -494,6 +557,7 @@ static void on_ompt_callback_target_submit_emi (ompt_scope_endpoint_t endpoint,
     cbenter;
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     stackEndpoint(target_submit_emi_stack, target_data->value, endpoint);
+    cbexit;
 }
 
 static void on_ompt_callback_target_map_emi (ompt_data_t *target_data,
@@ -503,6 +567,7 @@ static void on_ompt_callback_target_map_emi (ompt_data_t *target_data,
     VERB("\tTarget: %lu, nitems: %u, host_addr: %p, device_addr: %p, bytes: %lu, flags: %u",
             target_data->value, nitems, *host_addr, *device_addr, *bytes, *mapping_flags);
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_error(ompt_severity_t severity,
@@ -511,6 +576,7 @@ static void on_ompt_callback_error(ompt_severity_t severity,
     VERB("\tSeverity: %s, message: '%s', length: %lu\n",
             ompt_severity_strings[severity], message, length);
     get_name(codeptr_ra);
+    cbexit;
 }
 
 static void on_ompt_callback_sync_region_wait(ompt_sync_region_t kind,
@@ -521,6 +587,7 @@ static void on_ompt_callback_sync_region_wait(ompt_sync_region_t kind,
     VERB("\tEndpoint: %s\n", ompt_scope_endpoint_strings[endpoint]);
     get_name(codeptr_ra);
     stackEndpoint(sync_stack, task_data->value, endpoint);
+    cbexit;
 }
 #define ompt_callback_sync_region_wait_t ompt_callback_sync_region_t
 
@@ -530,6 +597,7 @@ static void on_ompt_callback_mutex(ompt_mutex_t kind, ompt_wait_id_t wait_id,
     VERB("\tKind: %s\n", ompt_mutex_strings[kind]);
     VERB("\tWait_id: %lu\n", wait_id);
     get_name(codeptr_ra);
+    cbexit;
 }
 #define on_ompt_callback_mutex_released on_ompt_callback_mutex
 #define ompt_callback_mutex_released_t ompt_callback_mutex_t
@@ -545,6 +613,7 @@ static void on_ompt_callback_lock_init(ompt_mutex_t kind,
     VERB("\tKind: %s\n", ompt_mutex_strings[kind]);
     VERB("\thint: %u, impl: %u, wait_id: %lu\n", hint, impl, wait_id);
     get_name(codeptr_ra);
+    cbexit;
 }
 
 #define ompt_callback_lock_init_t ompt_callback_mutex_acquire_t
@@ -626,6 +695,7 @@ static void on_ompt_callback_buffer_request (
     *bytes = OMPT_BUFFER_REQUEST_SIZE;
     *buffer = malloc(*bytes);
     VERB("Allocated %lu bytes at %p in buffer request callback\n", *bytes, *buffer);
+    cbexit;
 }
 
 // This function is called by an OpenMP runtime helper thread for
@@ -656,6 +726,7 @@ static void on_ompt_callback_buffer_complete (
                 &current);
     }
     if (buffer_owned) delete_buffer_ompt(buffer);
+    cbexit;
 }
 
 // Utility routine to enable the desired tracing modes
@@ -725,12 +796,14 @@ static void on_ompt_callback_device_initialize ( int device_num,
     // target construct implementation.
 
     start_trace();
+    cbexit;
 }
 
 // Called at device finalize
 static void on_ompt_callback_device_finalize ( int device_num) {
     cbenter;
     VERB("Callback Fini: device_num=%d\n", device_num);
+    cbexit;
 }
 
 // Called at device load time
@@ -740,11 +813,13 @@ static void on_ompt_callback_device_load ( int device_num, const char *filename,
     cbenter;
     VERB("Load: device_num:%d filename:%s host_adddr:%p device_addr:%p bytes:%lu\n",
             device_num, filename, host_addr, device_addr, bytes);
+    cbexit;
 }
 
 static void on_ompt_callback_device_unload ( int device_num, uint64_t module_id) {
     cbenter;
     VERB("Unload: device_num:%d\n", device_num);
+    cbexit;
 }
 
 // Data transfer
@@ -761,6 +836,7 @@ static void on_ompt_callback_target_data_op ( ompt_id_t target_id,
             "dest=%p dest_device_num=%d bytes=%lu code=%p\n",
             target_id, host_op_id, optype, src_addr, src_device_num,
             dest_addr, dest_device_num, bytes, codeptr_ra);
+    cbexit;
 }
 
 // Target region
@@ -771,6 +847,7 @@ static void on_ompt_callback_target ( ompt_target_t kind,
     assert(codeptr_ra != 0);
     VERB("Callback Target: target_id=%lu kind=%d endpoint=%d device_num=%d code=%p\n",
             target_id, kind, endpoint, device_num, codeptr_ra);
+    cbexit;
 }
 
 // Target launch
@@ -779,6 +856,7 @@ static void on_ompt_callback_target_submit ( ompt_id_t target_id,
     cbenter;
     VERB("  Callback Submit: target_id=%lu host_op_id=%lu req_num_teams=%d\n",
             target_id, host_op_id, requested_num_teams);
+    cbexit;
 }
 
 // Init functions
@@ -891,10 +969,10 @@ int preload_main(int argc, char** argv, char** envp) {
     static int _reentry = 0;
     if(_reentry > 0) return -1;
     _reentry = 1;
-    printf("In main wrapper!\n");
+    VERB("In main wrapper!\n");
     getfailed()=false;
     int ret = main_real(argc, argv, envp);
-    printf("Exiting main wrapper!\n");
+    VERB("Exiting main wrapper!\n");
     flush_trace();
     stop_trace();
     ompt_finalize_tool();

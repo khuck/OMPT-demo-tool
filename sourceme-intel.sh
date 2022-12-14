@@ -11,3 +11,4 @@ export OMP_TARGET_OFFLOAD=mandatory
 #export OMP_TOOL_VERBOSE_INIT=stdout
 export OMP_DISPLAY_ENV=true
 export OMP_NUM_THREADS=4
+PATH=/usr/local/packages/gdb/12.1/bin:${PATH}

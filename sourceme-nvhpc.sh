@@ -7,3 +7,4 @@ export OMP_TOOL_LIBRARIES=./libompt_tt.so
 export OMP_TOOL_VERBOSE_INIT=stdout
 export OMP_DISPLAY_ENV=true
 export OMP_NUM_THREADS=2
+PATH=/usr/local/packages/gdb/12.1/bin:${PATH}
