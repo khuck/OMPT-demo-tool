@@ -49,7 +49,7 @@ class scoped_log {
         FILE *fptr;
         static size_t thread_count;
 };
-size_t scoped_log::thread_count{0};
+size_t scoped_log::thread_count{1};
 
 FILE* getlog() {
     static thread_local scoped_log log;
