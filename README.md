@@ -11,3 +11,13 @@ make
 ./simple
 ```
 At the UO, we can use gilgamesh for NVIDIA and CUDA, or jupiter for Intel, or Omnia for all three.
+
+For more verbose output, run with VERBOSE=1 (environment variable):
+```
+VERBOSE=1 ./build/simple
+```
+or:
+```
+export VERBOSE=1
+./build/simple
+```
