@@ -24,6 +24,8 @@
 #include <sys/types.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
 
 uint64_t get_unique_id() {
     static std::atomic<uint64_t> id{0};
@@ -63,7 +65,9 @@ FILE* getlog() {
 void VERB(const char * format, ...) {
     va_list args;
     va_start (args, format);
+    static std::mutex mtx;
     if (getverb()) {
+        std::lock_guard<std::mutex> l{mtx};
         vfprintf(stdout, format, args );
         fflush(stdout);
     } else {
@@ -173,7 +177,8 @@ class timer_stack {
         }
         void pop(uint64_t tid) {
             if (theStack.size() == 0) {
-                std::cerr << "Empty stack!" << std::endl;
+                std::cerr << "Empty " << 
+                    stack_type_strings[_stype] << "  stack!" << std::endl;
                 return;
             }
             uint64_t tmp = theStack.top();
@@ -192,7 +197,9 @@ class scopedMap : public std::map<stack_type_t, timer_stack*> {
     public:
         scopedMap() {};
         ~scopedMap() {
-            ompt_finalize_tool();
+            if (getpid() == gettid()) {
+                ompt_finalize_tool();
+            }
             for (auto it = cbegin(); it != cend();) {
                 delete it->second;
                 it = erase(it);
